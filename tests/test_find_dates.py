@@ -54,3 +54,19 @@ def test_find_date_strings(input_text, expected_date):
         for return_date in datefinder.find_dates(input_text):
             assert return_date == expected_date
         assert return_date is not None # handles dates that were never matched
+
+@pytest.mark.parametrize('input_text, expected_dates', [
+    # date ranges from issue https://github.com/akoumjian/datefinder/issues/18
+    ("i am looking for a date june 4th 1996 to july 3rd 2013",[
+        datetime(1996, 6, 4),
+        datetime(2013, 7, 3)
+    ]),
+    ("i was told to start on August 1st 2012 and that it went until july 3rd 2013",[
+        datetime(2012, 9, 1),
+        datetime(2013, 7, 3)
+    ]),
+])
+def test_find_date_strings_with_ranges(input_text, expected_dates):
+    matches = list(datefinder.find_dates(input_text))
+    for match in matches:
+        assert match in expected_dates

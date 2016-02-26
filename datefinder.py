@@ -102,17 +102,8 @@ class DateFinder(object):
 
     ## These tokens can be in original text but dateutil
     ## won't handle them without modification
-    REPLACEMENTS = {
-        "standard": " ",
-        "daylight": " ",
-        "savings": " ",
-        "time": " ",
-        "date": " ",
-        "by": " ",
-        "due": " ",
-        "on": " ",
-        "to": " ",
-    }
+    SUBSTITUTE_PATTERN = " || "
+    REPLACEMENTS = dict( [(key, SUBSTITUTE_PATTERN) for key in EXTRA_TOKENS_PATTERN.split("|") if key not in ['t','z']] )
 
     TIMEZONE_REPLACEMENTS = {
         "pacific": "PST",
@@ -126,9 +117,24 @@ class DateFinder(object):
 
     def find_dates(self, text, source=False, index=False, strict=False):
 
-        for date_string, indices, captures in self.extract_date_strings(text, strict=strict):
+        lazy_stack = []
+        extracted_date_iter = iter(self.extract_date_strings(text, strict=strict))
 
-            as_dt = self.parse_date_string(date_string, captures)
+        try:
+            lazy_stack.append( next(extracted_date_iter) )
+        except StopIteration:
+            yield None
+
+        while len( lazy_stack ) > 0:
+            date_string, indices, captures = lazy_stack.pop()
+
+            as_dt = self.parse_date_string(date_string, captures, strict=strict)
+
+            ## the final date string matched more than one date again
+            if isinstance(as_dt, list):
+                lazy_stack.extend(as_dt)
+                continue
+
             if as_dt is None:
                 ## Dateutil couldn't make heads or tails of it
                 ## move on to next
@@ -144,6 +150,12 @@ class DateFinder(object):
                 returnables = returnables[0]
             yield returnables
 
+            try:
+                lazy_stack.append( next(extracted_date_iter) )
+            except StopIteration:
+                pass
+
+
     def _find_and_replace(self, date_string, captures):
         """
         :warning: when multiple tz matches exist the last sorted capture will trump
@@ -151,20 +163,14 @@ class DateFinder(object):
         :return: date_string, tz_string
         """
 
-
-        # add timezones to replace
+        ## add timezones to replace
         cloned_replacements = copy.copy(self.REPLACEMENTS)  ## don't mutate
         for tz_string in captures.get('timezones', []):
             cloned_replacements.update({tz_string: ' '})
 
         date_string = date_string.lower()
         for key, replacement in cloned_replacements.items():
-            # we really want to match all permutations of the key surrounded by whitespace chars except one
-            # for example: consider the key = 'to'
-            # 1. match 'to '
-            # 2. match ' to'
-            # 3. match ' to '
-            # but never match r'(\s|)to(\s|)' which would make 'october' > 'ocber'
+            ## match all permutations of the key with whitespace at beginning, end and on both sides
             date_string = re.sub(r'(^|\s)'+ key +'(\s|$)',replacement, date_string, flags=re.IGNORECASE)
 
         return date_string, self._pop_tz_string(sorted(captures.get('timezones', [])))
@@ -172,8 +178,8 @@ class DateFinder(object):
     def _pop_tz_string(self, list_of_timezones):
         try:
             tz_string = list_of_timezones.pop()
-            # make sure it's not a timezone we
-            # want replaced with better abbreviation
+            ## make sure it's not a timezone we
+            ## want replaced with better abbreviation
             return self.TIMEZONE_REPLACEMENTS.get(tz_string, tz_string)
         except IndexError:
             return ''
@@ -191,12 +197,31 @@ class DateFinder(object):
         tzinfo_match = tz.gettz(tz_string)
         return datetime_obj.replace(tzinfo=tzinfo_match)
 
-    def parse_date_string(self, date_string, captures):
-        # replace tokens that are problematic for dateutil
+    def parse_date_string(self, date_string, captures, is_second_sweep=False, strict=False):
+        """
+        :param date_string:
+        :param captures:
+        :param strict:
+        :return: a datetime object or a list of more matches
+        """
+
+        ## replace tokens that are problematic for dateutil
         date_string, tz_string = self._find_and_replace(date_string, captures)
 
         ## One last sweep after removing
         date_string = date_string.strip(self.STRIP_CHARS)
+
+        ## our final date string might match more than one date
+        ## https://github.com/akoumjian/datefinder/issues/18
+        second_sweep_matches = list(self.extract_date_strings(date_string, strict=strict))
+        if len(second_sweep_matches) > 1:
+            ## return from here and add results to the lazy_stack in previous call
+            ## then these results will be processed again one at a time
+            return second_sweep_matches
+        elif len(second_sweep_matches) == 1:
+            ## replace our substitution pattern
+            date_string = re.sub(self.SUBSTITUTE_PATTERN, " ", second_sweep_matches[0][0])
+
         ## Match strings must be at least 3 characters long
         ## < 3 tends to be garbage
         if len(date_string) < 3:
