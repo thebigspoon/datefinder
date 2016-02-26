@@ -102,8 +102,8 @@ class DateFinder(object):
 
     ## These tokens can be in original text but dateutil
     ## won't handle them without modification
-    SUBSTITUTE_PATTERN = " || "
-    REPLACEMENTS = dict( [(key, SUBSTITUTE_PATTERN) for key in EXTRA_TOKENS_PATTERN.split("|") if key not in ['t','z']] )
+    SUBSTITUTION_CHAR = " $ "
+    REPLACEMENTS = dict( [(key, SUBSTITUTION_CHAR) for key in EXTRA_TOKENS_PATTERN.split("|") if key not in ['t','z']] )
 
     TIMEZONE_REPLACEMENTS = {
         "pacific": "PST",
@@ -197,7 +197,7 @@ class DateFinder(object):
         tzinfo_match = tz.gettz(tz_string)
         return datetime_obj.replace(tzinfo=tzinfo_match)
 
-    def parse_date_string(self, date_string, captures, is_second_sweep=False, strict=False):
+    def parse_date_string(self, date_string, captures, strict=False):
         """
         :param date_string:
         :param captures:
@@ -213,14 +213,14 @@ class DateFinder(object):
 
         ## our final date string might match more than one date
         ## https://github.com/akoumjian/datefinder/issues/18
-        second_sweep_matches = list(self.extract_date_strings(date_string, strict=strict))
-        if len(second_sweep_matches) > 1:
+        second_pass_matches = list(self.extract_date_strings(date_string, strict=strict))
+        if len(second_pass_matches) > 1:
             ## return from here and add results to the lazy_stack in previous call
             ## then these results will be processed again one at a time
-            return second_sweep_matches
-        elif len(second_sweep_matches) == 1:
+            return second_pass_matches
+        elif len(second_pass_matches) == 1:
             ## replace our substitution pattern
-            date_string = re.sub(self.SUBSTITUTE_PATTERN, " ", second_sweep_matches[0][0])
+            date_string = re.sub(self.SUBSTITUTION_CHAR, " ", second_pass_matches[0][0])
 
         ## Match strings must be at least 3 characters long
         ## < 3 tends to be garbage
