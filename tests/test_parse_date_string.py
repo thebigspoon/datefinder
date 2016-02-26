@@ -14,19 +14,19 @@ logger = logging.getLogger(__name__)
 @pytest.mark.parametrize('date_string, expected_parse_arg, expected_captures, expected_date', [
     (
         'due on Tuesday Jul 22, 2014 eastern standard time',
-        'tuesday jul 22, 2014',
+        '    tuesday jul 22, 2014    ',
         { 'timezones': ['eastern'] },
         datetime(2014, 7, 22).replace(tzinfo=tz.gettz('EST'))
     ),
     (
         'Friday pAcific stanDard time',
-        'friday',
+        'friday    ',
         { 'timezones': ['pacific'] },
         parser.parse('friday').replace(tzinfo=tz.gettz('PST'))
     ),
     (
         '13/03/2014 Central Daylight Savings Time',
-        '13/03/2014',
+        '13/03/2014      ',
         { 'timezones': ['central'] },
         datetime(2014, 3, 13).replace(tzinfo=tz.gettz('CST'))
     ),
@@ -35,7 +35,7 @@ logger = logging.getLogger(__name__)
     # and returns naive datetime objects
     (
         ' on 12/24/2015 at 2pm ',
-        '12/24/2015 at 2pm',
+        '  12/24/2015   2pm',
         { 'timezones': [] },
         datetime(2015, 12, 24, 14, 0)
     ),

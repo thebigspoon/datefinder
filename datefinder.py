@@ -102,8 +102,7 @@ class DateFinder(object):
 
     ## These tokens can be in original text but dateutil
     ## won't handle them without modification
-    SUBSTITUTION_CHAR = " $ "
-    REPLACEMENTS = dict( [(key, SUBSTITUTION_CHAR) for key in EXTRA_TOKENS_PATTERN.split("|") if key not in ['t','z']] )
+    REPLACEMENTS = dict( [(key, " $ ") for key in EXTRA_TOKENS_PATTERN.split("|") if key not in ['t','z']] )
 
     TIMEZONE_REPLACEMENTS = {
         "pacific": "PST",
@@ -118,7 +117,7 @@ class DateFinder(object):
     def find_dates(self, text, source=False, index=False, strict=False):
 
         lazy_stack = []
-        extracted_date_iter = iter(self.extract_date_strings(text, strict=strict))
+        extracted_date_iter = self.extract_date_strings(text, strict=strict)
 
         try:
             lazy_stack.append( next(extracted_date_iter) )
@@ -218,9 +217,9 @@ class DateFinder(object):
             ## return from here and add results to the lazy_stack in previous call
             ## then these results will be processed again one at a time
             return second_pass_matches
-        elif len(second_pass_matches) == 1:
-            ## replace our substitution pattern
-            date_string = re.sub(self.SUBSTITUTION_CHAR, " ", second_pass_matches[0][0])
+
+        ## replace our substitution pattern
+        date_string = re.sub(r'\$', " ", date_string)
 
         ## Match strings must be at least 3 characters long
         ## < 3 tends to be garbage
